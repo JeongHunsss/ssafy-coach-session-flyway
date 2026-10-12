@@ -5,5 +5,7 @@ spring:
     password: "ssafy"
   jpa:
     hibernate:
-      ddl-auto: update        # 지금은 흔히 쓰는 설정 그대로. step1에서 validate로 바꿉니다.
+      ddl-auto: validate      # update → validate로 변경. 이제 DB 변경은 Flyway가 담당
     open-in-view: false
+  flyway:
+    enabled: true
