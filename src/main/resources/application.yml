@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/mydb?createDatabaseIfNotExist=true   # mydb가 없으면 자동 생성
+    username: root
+    password: "ssafy"
+  jpa:
+    hibernate:
+      ddl-auto: update        # 지금은 흔히 쓰는 설정 그대로. step1에서 validate로 바꿉니다.
+    open-in-view: false

@@ -1,0 +1,10 @@
+services:
+  mysql:
+    image: mysql:8
+    container_name: flyway-demo
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "ssafy"
+      MYSQL_DATABASE: mydb
+      TZ: Asia/Seoul
