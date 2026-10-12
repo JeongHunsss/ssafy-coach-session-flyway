@@ -5,7 +5,9 @@ spring:
     password: "ssafy"
   jpa:
     hibernate:
-      ddl-auto: validate      # update → validate로 변경. 이제 DB 변경은 Flyway가 담당
+      ddl-auto: validate
     open-in-view: false
   flyway:
     enabled: true
+    baseline-on-migrate: true   # 테이블은 있는데 이력 테이블이 없으면 baseline부터 시작
+    baseline-version: 1         # V1까지는 이미 적용된 것으로 기록 → V2부터 실행
