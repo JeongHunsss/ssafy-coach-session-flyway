@@ -27,6 +27,11 @@ public class User {
     @Column(length = 20)
     private String phone;
 
+    @Column(length = 500)
+    private String profileImageUrl;   // A 브랜치
+
+    private String bio;               // B 브랜치
+
     protected User() {
     }
 }
