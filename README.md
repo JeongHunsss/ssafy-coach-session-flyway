@@ -99,7 +99,7 @@ git switch step2
 브랜치를 바꾸고 → 실행하고 → 로그와 DB를 확인하는 것을 반복합니다.
 
 > **⚠️ 꼭 지켜주세요**
-> - **step1 → step6은 순서대로** 진행하세요. 같은 DB에 이력이 쌓이면서 진행되는 구조입니다.
+> - **step1 → step6 (→ step9)은 순서대로** 진행하세요. 같은 DB에 이력이 쌓이면서 진행되는 구조입니다.
 > - 이전 단계로 돌아가거나 처음부터 다시 하고 싶으면 [DB 초기화](#db-초기화-처음부터-다시)를 하세요.
 > - `step0` 브랜치는 Flyway가 없는 **"도입 전" 상태**로, step7 Baseline 실습용입니다. **실습은 step1부터** 시작하세요. step1 전에 step0을 실행하면 `ddl-auto: update`가 테이블을 만들어버려서 step1이 실패합니다. (이 상황은 step7에서 일부러 재현합니다. [step0은 왜 있나요?](#step0--flyway-도입-전))
 
@@ -118,6 +118,7 @@ git switch step2
 | `step6` | 6-1 | 나중에 머지된 쪽을 V5로 변경 | ✅ V4, V5 적용 |
 | `step7` | 4-2 | 이미 테이블이 있는 DB에 Flyway만 붙임 | ❌ **non-empty schema 오류** |
 | `step8` | 4-2 | `V1__baseline.sql` + `baseline-on-migrate` | ✅ V1은 기록만, V2부터 실행 |
+| `step9` | 부록 D | (step6 다음) `dev` 프로필에서만 테스트 데이터 INSERT | ✅ 기본 실행엔 없음, dev 실행 시에만 데이터 들어감 |
 
 step1→step6은 step0 위에, step7→step8은 따로 step0 위에 커밋을 하나씩 쌓은 구조라서, 단계별 변경 내용은 이렇게 볼 수 있습니다.
 
@@ -141,8 +142,8 @@ git diff step1 step2
    step0을 한 번 실행하면 JPA가 `users` 테이블을 만들어 줍니다. "`ddl-auto: update`로 개발하다가 Flyway를 붙이려는" 여러분 프로젝트와 같은 상태입니다.
 2. **모든 브랜치의 공통 시작점입니다.** 프로젝트 뼈대가 여기 있고, step1과 step7이 모두 여기서 갈라집니다.
    ```
-   step0 ─┬─ step1 → step2 → step3 → step4 → step5 → step6   (빈 DB에서 시작하는 실습)
-          └─ step7 → step8                                   (기존 DB에 붙이는 Baseline 실습)
+   step0 ─┬─ step1 → step2 → step3 → step4 → step5 → step6 → step9   (빈 DB에서 시작하는 실습 + 환경별 테스트 데이터)
+          └─ step7 → step8                                           (기존 DB에 붙이는 Baseline 실습)
    ```
 
 그래서 **step1~step6 실습만 한다면 step0은 실행할 필요가 없습니다.** 오히려 step1 전에 실행하면 테이블이 미리 생겨서 step1이 실패하니 주의하세요.
@@ -483,6 +484,104 @@ spring:
 
 ---
 
+### step9 — 개발 환경에서만 테스트 데이터 넣기 (대본 부록 D)
+
+> step9는 **step6 다음 단계**입니다. step6까지 진행한 DB에서 그대로 이어가도 되고, 빈 DB에서 바로 시작해도 됩니다.
+> step7·step8을 실행한 DB라면 [초기화](#db-초기화-처음부터-다시)하고 시작하세요.
+
+**상황**
+
+개발할 때는 매번 회원가입부터 하기 귀찮으니 테스트 계정이 미리 들어 있으면 좋겠죠. 그런데 이 INSERT가 **운영 DB에 들어가면 사고**입니다.
+
+- 테이블 구조처럼 **모든 환경에 똑같이 있어야 하는 것** → `db/migration`
+- 테스트 데이터처럼 **개발 환경에만 있어야 하는 것** → `db/seed` (별도 폴더)
+
+로 나누고, **프로필에 따라 Flyway가 읽는 폴더(`locations`)를 다르게** 합니다.
+
+**바뀐 것**
+
+```
+src/main/resources/
+├── application.yml          ← 공통(운영 기준): db/migration 만 읽음
+├── application-dev.yml      ← dev 프로필: db/migration + db/seed 읽음
+└── db/
+    ├── migration/           ← V1 ~ V5 (모든 환경)
+    └── seed/
+        └── R__insert_test_users.sql   ← 개발 환경 전용 테스트 데이터
+```
+
+`application.yml` (기본값 = 운영 기준)
+
+```yaml
+spring:
+  flyway:
+    locations: classpath:db/migration
+```
+
+`application-dev.yml`
+
+```yaml
+spring:
+  flyway:
+    locations: classpath:db/migration, classpath:db/seed
+```
+
+`db/seed/R__insert_test_users.sql`
+
+```sql
+INSERT INTO users (id, email, name, nickname, phone) VALUES
+    (1, 'kim@ssafy.com',  '김싸피', 'kimssafy',  '010-1111-1111'),
+    (2, 'lee@ssafy.com',  '이싸피', 'leessafy',  '010-2222-2222'),
+    (3, 'park@ssafy.com', '박싸피', 'parkssafy', '010-3333-3333') AS new
+ON DUPLICATE KEY UPDATE
+    email = new.email, name = new.name, nickname = new.nickname, phone = new.phone;
+```
+
+**왜 V가 아니라 R(Repeatable)인가요?**
+
+- 테스트 데이터를 `V6__insert_test_users.sql`로 만들면, **개발 DB에는 V6이 있고 운영 DB에는 없는** 상태가 됩니다. 나중에 진짜 V6 마이그레이션을 만들 때 버전이 꼬입니다.
+- **R은 버전 번호가 없어서** 공통 마이그레이션의 번호에 끼어들지 않습니다. 아직 안 돌린 V가 모두 끝난 **뒤에** 실행되니, 테이블이 다 만들어진 다음에 데이터가 들어갑니다.
+- R은 **파일 내용이 바뀔 때마다 다시 실행**됩니다. 테스트 계정을 추가·수정하면 다음 실행 때 자동으로 반영돼요. 대신 여러 번 실행돼도 문제없도록 `ON DUPLICATE KEY UPDATE`처럼 **중복에 안전하게** 써야 합니다.
+
+**해보기**
+
+1. **운영처럼(기본 프로필)** 실행합니다.
+   ```bash
+   ./gradlew bootRun
+   ```
+   테스트 데이터는 들어가지 않습니다. (step6에서 이어왔다면 `up to date`, 빈 DB라면 V1~V5만 적용)
+   ```bash
+   docker exec flyway-demo mysql -uroot -pssafy mydb -e "SELECT COUNT(*) FROM users;"
+   ```
+   → `0`
+
+2. **개발 환경(dev 프로필)** 으로 실행합니다.
+   ```bash
+   ./gradlew bootRun --args='--spring.profiles.active=dev'
+   ```
+   > Windows PowerShell: `.\gradlew bootRun --args="--spring.profiles.active=dev"`
+   > IntelliJ: Run Configuration의 **Active profiles**에 `dev` 입력
+
+   ```
+   Migrating schema `mydb` with repeatable migration "insert test users"
+   ```
+   이번엔 `users`에 3명이 들어가고, 이력 테이블에 version이 비어 있는(`NULL`) R 마이그레이션이 한 줄 생깁니다.
+   ```bash
+   docker exec flyway-demo mysql -uroot -pssafy mydb -e "SELECT installed_rank, version, description, type FROM flyway_schema_history;"
+   ```
+
+3. (선택) `R__insert_test_users.sql`에 한 명을 추가하고 dev로 다시 실행해 보세요. 내용(체크섬)이 바뀌었으니 R이 **다시 실행**됩니다. V 파일이었다면 체크섬 오류가 났을 상황이죠.
+
+> **주의 — 한 DB를 dev와 운영 프로필로 번갈아 쓰지 마세요**
+> dev로 R을 적용한 DB를 기본 프로필로 다시 실행하면, 운영 설정에는 `db/seed` 폴더가 없어서 `Detected applied migration not resolved locally: insert test users` 오류가 납니다.
+> 원래 개발 DB와 운영 DB는 **서로 다른 DB**이니 실제로는 생기지 않는 상황입니다. 실습 중에 생기면 DB를 초기화하세요.
+
+> **다른 방법도 있습니다**
+> - `spring.flyway.placeholders`로 SQL 안에서 환경별 값을 바꾸거나, `afterMigrate.sql` 콜백으로 매 실행마다 데이터를 넣는 방법도 있습니다.
+> - 마이그레이션이 아니라 Spring의 `data.sql` + 프로필로 넣는 팀도 있습니다. 어느 쪽이든 **"운영에 들어가면 안 되는 SQL은 운영 설정에서 아예 안 읽히게"** 하는 게 핵심입니다.
+
+---
+
 ## 자주 쓰는 명령어
 
 ### 이력 테이블 확인
@@ -545,6 +644,10 @@ step1 전에 `step0`을 실행해서 JPA가 테이블을 미리 만든 상태입
 ### 이전 단계로 돌아갔더니 `Detected applied migration not resolved locally` 오류가 나요
 
 DB에는 V3까지 적용됐는데 브랜치에는 V2까지만 있는 상태입니다. Flyway는 DB 이력과 파일이 맞지 않으면 멈춥니다. [DB 초기화](#db-초기화-처음부터-다시) 후 다시 진행하세요.
+
+### step9에서 기본 프로필로 실행했더니 `Detected applied migration not resolved locally: insert test users` 오류가 나요
+
+dev 프로필로 테스트 데이터(R)를 넣은 DB를 운영 설정으로 실행한 상태입니다. 운영 설정에는 `db/seed` 폴더가 없어서 이력과 파일이 맞지 않습니다. 실제로는 개발 DB와 운영 DB가 다르니 생기지 않는 상황입니다. [DB 초기화](#db-초기화-처음부터-다시) 후 기본 프로필 → dev 프로필 순서로 실행하세요.
 
 ### 마이그레이션 파일을 넣었는데 인식이 안 돼요
 
