@@ -1,0 +1,4 @@
+# dev 프로필로 실행할 때만 적용됩니다. (--spring.profiles.active=dev)
+spring:
+  flyway:
+    locations: classpath:db/migration, classpath:db/seed   # 개발 환경에서만 테스트 데이터(db/seed)도 읽음
