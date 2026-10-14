@@ -23,9 +23,9 @@
 | 항목 | 버전 / 비고 |
 |------|-------------|
 | JDK | 17 이상 (없으면 Gradle이 JDK 17을 자동으로 내려받습니다) |
-| Docker | Docker Desktop 등. MySQL 8 컨테이너를 띄우는 데 사용 |
+| MySQL 8 | **로컬에 설치된 MySQL** (`root` / `ssafy`, 3306 포트). 로컬 MySQL이 없으면 Docker로 대신 띄울 수 있습니다 → [MySQL 준비](#2-mysql-준비) |
 | IDE | IntelliJ, VS Code 등 아무거나 |
-| DB 클라이언트 | (선택) MySQL Workbench, DBeaver 등. 없어도 터미널로 확인 가능 |
+| DB 클라이언트 | MySQL Workbench, DBeaver 등. 이력 테이블과 테이블 구조를 확인할 때 씁니다 |
 
 프로젝트 구성
 
@@ -42,13 +42,16 @@ src/main/
     └── db/migration/          ← 마이그레이션 파일 위치 (Spring Boot 기본 경로)
 ```
 
-DB 접속 정보 (`docker-compose.yml`)
+DB 접속 정보 (`application.yml`)
 
 | 항목 | 값 |
 |------|----|
 | Host / Port | `localhost` / `3306` |
-| Database | `mydb` |
+| Database | `mydb` (없으면 앱이 실행될 때 자동으로 만듭니다) |
 | User / Password | `root` / `ssafy` |
+
+> JDBC URL에 `createDatabaseIfNotExist=true`를 붙여 두어서, `mydb`를 직접 만들지 않아도 됩니다.
+> 로컬 MySQL 계정·비밀번호가 다르면 `application.yml`의 `username` / `password`만 바꿔주세요.
 
 ---
 
@@ -64,13 +67,19 @@ git clone https://github.com/JeongHunsss/ssafy-coach-session-flyway.git
 cd ssafy-coach-session-flyway
 ```
 
-### 2. MySQL 띄우기
+### 2. MySQL 준비
+
+**로컬 MySQL이 있다면 (기본)** — MySQL이 실행 중인지만 확인하면 됩니다. `mydb`는 앱이 알아서 만듭니다.
+
+> 이미 `mydb`가 있고 안에 테이블이 있다면, 깨끗한 상태에서 시작하도록 [DB 초기화](#db-초기화-처음부터-다시)를 먼저 하세요.
+
+**로컬 MySQL이 없다면 (선택)** — Docker로 띄웁니다. 레포의 `docker-compose.yml`이 같은 접속 정보(`root` / `ssafy`, 3306)로 MySQL 8을 띄워줍니다.
 
 ```bash
 docker compose up -d
 ```
 
-> 이미 로컬에 MySQL이 3306 포트로 떠 있다면 [트러블슈팅](#3306-포트가-이미-사용-중이에요)을 먼저 보세요.
+> 로컬 MySQL이 이미 3306 포트를 쓰고 있으면 컨테이너가 뜨지 않습니다. 둘 중 **하나만** 쓰세요.
 
 ### 3. step1 브랜치로 이동
 
@@ -197,7 +206,7 @@ CREATE TABLE users (
    ```
 2. DB에서 이력 테이블을 확인합니다.
    ```sql
-   SELECT version, description, success FROM flyway_schema_history;
+   SELECT version, description, success FROM mydb.flyway_schema_history;
    ```
    `users` 테이블과 함께 `flyway_schema_history`가 생기고, V1이 기록돼 있습니다.
 3. **한 번 더 실행합니다.** 이번엔 이렇게 뜹니다.
@@ -277,7 +286,7 @@ Either revert the changes to the migration, or run repair to update the schema h
 
 - Flyway는 파일을 실행할 때 내용의 **체크섬**(요약값)을 이력 테이블에 같이 기록합니다.
   ```sql
-  SELECT version, checksum FROM flyway_schema_history;
+  SELECT version, checksum FROM mydb.flyway_schema_history;
   ```
 - 다음 실행 때 파일의 체크섬을 다시 계산해서 비교하고, 다르면 멈춥니다.
 - 이미 적용된 파일을 고쳐도 **내 DB는 안 바뀝니다** (이미 실행이 끝났으니까요). 그런데 팀원이 새로 DB를 만들면 고쳐진 버전이 실행되죠. 그 순간 **내 DB와 팀원 DB가 달라집니다.** Flyway는 이걸 막으려고 오류를 냅니다.
@@ -393,12 +402,10 @@ V20260914_1042__add_phone.sql
 
 **상황 만들기** — "`ddl-auto: update`로 개발하던 프로젝트"를 재현합니다.
 
-```bash
-docker compose down -v
-```
+먼저 [DB 초기화](#db-초기화-처음부터-다시)로 `mydb`를 지웁니다.
 
-```bash
-docker compose up -d
+```sql
+DROP DATABASE IF EXISTS mydb;
 ```
 
 ```bash
@@ -409,7 +416,7 @@ git switch step0
 ./gradlew bootRun
 ```
 
-`step0`에서 실행하면 JPA가 `users` 테이블을 만듭니다. 확인했으면 종료하고 step7로 이동합니다.
+`step0`에서 실행하면 `mydb`가 새로 만들어지고 JPA가 `users` 테이블을 만듭니다. 확인했으면 종료하고 step7로 이동합니다.
 
 ```bash
 git switch step7
@@ -439,10 +446,14 @@ Flyway가 "테이블은 있는데 이력 테이블이 없네? 어디까지 적�
 1단계 — 현재 스키마를 **구조만** 덤프해서 V1으로 만듭니다.
 
 ```bash
-docker exec flyway-demo mysqldump -uroot -pssafy --no-data --skip-comments mydb
+mysqldump -uroot -pssafy --no-data --skip-comments mydb > V1__baseline.sql
 ```
 
-결과를 정리해서 `V1__baseline.sql`로 넣었습니다.
+> - `mysqldump`가 없다고 나오면 MySQL 설치 폴더(`C:\Program Files\MySQL\MySQL Server 8.0\bin`)에서 실행하세요. Workbench의 **Server → Data Export**에서 "Dump Structure Only"로 내보내도 됩니다.
+> - Docker로 띄웠다면 `docker exec flyway-demo mysqldump -uroot -pssafy --no-data --skip-comments mydb > V1__baseline.sql`
+> - Windows PowerShell의 `>`는 파일을 UTF-16으로 저장해서 Flyway가 못 읽을 수 있습니다. **Git Bash나 CMD에서** 실행하세요.
+
+덤프에는 `DROP TABLE IF EXISTS`, `/*!40101 SET ... */` 같은 줄도 들어 있습니다. 이런 줄은 지우고 **`CREATE TABLE`만 남겨서** `V1__baseline.sql`로 넣었습니다. (이미 Flyway를 쓰던 DB라면 `flyway_schema_history`도 빼야 합니다.)
 
 2단계 — 기존 DB에는 baseline 설정
 
@@ -464,12 +475,9 @@ spring:
    Migrating schema `mydb` to version "2 - add user nickname"
    ```
    이력 테이블을 보면 V1은 `<< Flyway Baseline >>`으로 **기록만** 되고, V2는 실제로 실행됐습니다.
-2. 이제 **빈 DB**에서도 돌려봅니다.
-   ```bash
-   docker compose down -v
-   ```
-   ```bash
-   docker compose up -d
+2. 이제 **빈 DB**에서도 돌려봅니다. `mydb`를 지우고,
+   ```sql
+   DROP DATABASE IF EXISTS mydb;
    ```
    다시 실행하면 이번엔 `V1__baseline.sql`이 **실제로 실행**되어 같은 구조가 재현됩니다.
 
@@ -550,8 +558,8 @@ ON DUPLICATE KEY UPDATE
    ./gradlew bootRun
    ```
    테스트 데이터는 들어가지 않습니다. (step6에서 이어왔다면 `up to date`, 빈 DB라면 V1~V5만 적용)
-   ```bash
-   docker exec flyway-demo mysql -uroot -pssafy mydb -e "SELECT COUNT(*) FROM users;"
+   ```sql
+   SELECT COUNT(*) FROM mydb.users;
    ```
    → `0`
 
@@ -566,8 +574,8 @@ ON DUPLICATE KEY UPDATE
    Migrating schema `mydb` with repeatable migration "insert test users"
    ```
    이번엔 `users`에 3명이 들어가고, 이력 테이블에 version이 비어 있는(`NULL`) R 마이그레이션이 한 줄 생깁니다.
-   ```bash
-   docker exec flyway-demo mysql -uroot -pssafy mydb -e "SELECT installed_rank, version, description, type FROM flyway_schema_history;"
+   ```sql
+   SELECT installed_rank, version, description, type FROM mydb.flyway_schema_history;
    ```
 
 3. (선택) `R__insert_test_users.sql`에 한 명을 추가하고 dev로 다시 실행해 보세요. 내용(체크섬)이 바뀌었으니 R이 **다시 실행**됩니다. V 파일이었다면 체크섬 오류가 났을 상황이죠.
@@ -584,29 +592,33 @@ ON DUPLICATE KEY UPDATE
 
 ## 자주 쓰는 명령어
 
+아래 SQL은 Workbench, DBeaver 같은 DB 클라이언트에서 실행합니다.
+
+> Docker로 띄웠다면 터미널에서 `docker exec flyway-demo mysql -uroot -pssafy mydb -e "<SQL>"` 형태로 실행할 수 있습니다.
+
 ### 이력 테이블 확인
 
-DB 클라이언트에서 실행하거나,
-
 ```sql
-SELECT installed_rank, version, description, checksum, success FROM flyway_schema_history;
-```
-
-터미널에서 바로 확인할 수 있습니다.
-
-```bash
-docker exec flyway-demo mysql -uroot -pssafy mydb -e "SELECT installed_rank, version, description, checksum, success FROM flyway_schema_history;"
+SELECT installed_rank, version, description, checksum, success FROM mydb.flyway_schema_history;
 ```
 
 ### 테이블 구조 확인
 
-```bash
-docker exec flyway-demo mysql -uroot -pssafy mydb -e "DESC users;"
+```sql
+DESC mydb.users;
 ```
 
 ### DB 초기화 (처음부터 다시)
 
-컨테이너와 데이터를 지우고 새로 띄웁니다.
+`mydb`를 통째로 지웁니다. 다음에 앱을 실행하면 빈 `mydb`가 자동으로 다시 만들어집니다.
+
+```sql
+DROP DATABASE IF EXISTS mydb;
+```
+
+> ⚠️ 로컬 MySQL의 `mydb`에 다른 데이터가 있다면 같이 지워집니다. 필요하면 `application.yml`의 DB 이름을 `flyway_demo` 등으로 바꿔서 쓰세요.
+
+Docker로 띄웠다면 컨테이너째 지우고 새로 띄워도 됩니다.
 
 ```bash
 docker compose down -v
@@ -616,26 +628,27 @@ docker compose down -v
 docker compose up -d
 ```
 
-> MySQL이 완전히 뜨기까지 10초 정도 걸립니다. 바로 실행해서 `Communications link failure`가 나면 잠시 후 다시 실행하세요.
+> 컨테이너 MySQL이 완전히 뜨기까지 10초 정도 걸립니다. 바로 실행해서 `Communications link failure`가 나면 잠시 후 다시 실행하세요.
 
 ---
 
 ## 트러블슈팅
 
-### 3306 포트가 이미 사용 중이에요
+### `Unknown database 'mydb'` 오류가 나요
 
-로컬에 MySQL이 설치돼 있으면 충돌합니다. `docker-compose.yml`의 포트를 바꾸고,
+JDBC URL에서 `?createDatabaseIfNotExist=true`가 빠진 상태입니다. `application.yml`의 URL을 확인하거나, DB 클라이언트에서 직접 만드세요.
 
-```yaml
-ports:
-  - "3307:3306"
+```sql
+CREATE DATABASE mydb;
 ```
 
-`application.yml`의 URL도 같이 바꿔주세요.
+### `Access denied for user 'root'@'localhost'` 오류가 나요
 
-```yaml
-url: jdbc:mysql://localhost:3307/mydb
-```
+로컬 MySQL 비밀번호가 `ssafy`가 아닌 경우입니다. `application.yml`의 `password`를 내 MySQL 비밀번호로 바꿔주세요.
+
+### `docker compose up`을 했더니 3306 포트가 이미 사용 중이래요
+
+로컬 MySQL이 이미 3306을 쓰고 있습니다. **로컬 MySQL을 그대로 쓰면 되니 Docker는 필요 없습니다.** 꼭 Docker를 쓰고 싶다면 `docker-compose.yml`의 포트를 `"3307:3306"`으로 바꾸고 `application.yml`의 URL도 `localhost:3307`로 바꿔주세요.
 
 ### step1인데 `Found non-empty schema(s)` 오류가 나요
 
