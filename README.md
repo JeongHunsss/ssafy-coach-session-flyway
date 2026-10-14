@@ -101,7 +101,7 @@ git switch step2
 > **⚠️ 꼭 지켜주세요**
 > - **step1 → step6은 순서대로** 진행하세요. 같은 DB에 이력이 쌓이면서 진행되는 구조입니다.
 > - 이전 단계로 돌아가거나 처음부터 다시 하고 싶으면 [DB 초기화](#db-초기화-처음부터-다시)를 하세요.
-> - `step0` 브랜치는 Flyway가 없는 **"도입 전" 상태**입니다. step1 전에 step0을 실행하면 `ddl-auto: update`가 테이블을 만들어버려서 step1이 실패합니다. (이 상황은 step7에서 일부러 재현합니다.)
+> - `step0` 브랜치는 Flyway가 없는 **"도입 전" 상태**로, step7 Baseline 실습용입니다. **실습은 step1부터** 시작하세요. step1 전에 step0을 실행하면 `ddl-auto: update`가 테이블을 만들어버려서 step1이 실패합니다. (이 상황은 step7에서 일부러 재현합니다. [step0은 왜 있나요?](#step0--flyway-도입-전))
 
 ---
 
@@ -109,7 +109,7 @@ git switch step2
 
 | 브랜치 | 대본 | 내용 | 실행 결과 |
 |--------|------|------|-----------|
-| `step0` | 2-1 ② | Flyway 도입 전. `ddl-auto: update` | ✅ (JPA가 테이블 생성) |
+| `step0` | 2-1 ②, 4-2 | Flyway 도입 전. `ddl-auto: update` (step7 준비용, 실습은 step1부터) | ✅ (JPA가 테이블 생성) |
 | `step1` | 4-1, 5-1, 5-2 | Flyway 설정 + `V1__init.sql` | ✅ V1 적용 → 재실행 시 "up to date" |
 | `step2` | 5-3 | `V2__add_user_nickname.sql` | ✅ V2만 적용 |
 | `step3` | 5-4 | 이미 적용된 V1을 수정 | ❌ **체크섬 오류** |
@@ -119,7 +119,7 @@ git switch step2
 | `step7` | 4-2 | 이미 테이블이 있는 DB에 Flyway만 붙임 | ❌ **non-empty schema 오류** |
 | `step8` | 4-2 | `V1__baseline.sql` + `baseline-on-migrate` | ✅ V1은 기록만, V2부터 실행 |
 
-각 브랜치는 이전 단계 위에 커밋을 하나씩 쌓은 구조라서, 단계별 변경 내용은 이렇게 볼 수 있습니다.
+step1→step6은 step0 위에, step7→step8은 따로 step0 위에 커밋을 하나씩 쌓은 구조라서, 단계별 변경 내용은 이렇게 볼 수 있습니다.
 
 ```bash
 git diff step1 step2
@@ -129,12 +129,23 @@ git diff step1 step2
 
 ## 단계별 설명
 
-
+### step0 — Flyway 도입 전
 
 대부분의 팀이 쓰고 있는 상태입니다. `application.yml`에 `ddl-auto: update`만 있고, 엔티티를 보고 JPA가 테이블을 알아서 만듭니다.
 
 - 편하지만 **뭘 바꿨는지 기록이 남지 않고**, 컬럼 삭제·이름 변경은 반영되지 않습니다.
-- 이 브랜치는 비교용이자 step7의 "이미 테이블이 있는 DB"를 만드는 용도입니다. **step1 전에는 실행하지 마세요.**
+
+**step1부터 시작하는데 step0은 왜 있나요?**
+
+1. **step7·step8(Baseline 실습)에서 "이미 테이블이 있는 DB"를 만들 때 씁니다.**
+   step0을 한 번 실행하면 JPA가 `users` 테이블을 만들어 줍니다. "`ddl-auto: update`로 개발하다가 Flyway를 붙이려는" 여러분 프로젝트와 같은 상태입니다.
+2. **모든 브랜치의 공통 시작점입니다.** 프로젝트 뼈대가 여기 있고, step1과 step7이 모두 여기서 갈라집니다.
+   ```
+   step0 ─┬─ step1 → step2 → step3 → step4 → step5 → step6   (빈 DB에서 시작하는 실습)
+          └─ step7 → step8                                   (기존 DB에 붙이는 Baseline 실습)
+   ```
+
+그래서 **step1~step6 실습만 한다면 step0은 실행할 필요가 없습니다.** 오히려 step1 전에 실행하면 테이블이 미리 생겨서 step1이 실패하니 주의하세요.
 
 ---
 
