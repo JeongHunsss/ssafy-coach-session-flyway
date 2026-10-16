@@ -13,8 +13,6 @@
 2. [실습 시작하기](#실습-시작하기)
 3. [브랜치 한눈에 보기](#브랜치-한눈에-보기)
 4. [단계별 설명](#단계별-설명)
-5. [자주 쓰는 명령어](#자주-쓰는-명령어)
-6. [트러블슈팅](#트러블슈팅)
 
 ---
 
@@ -23,7 +21,7 @@
 | 항목 | 버전 / 비고 |
 |------|-------------|
 | JDK | 17 이상 (없으면 Gradle이 JDK 17을 자동으로 내려받습니다) |
-| MySQL 8 | **로컬에 설치된 MySQL** (`root` / `ssafy`, 3306 포트). 로컬 MySQL이 없으면 Docker로 대신 띄울 수 있습니다 → [MySQL 준비](#2-mysql-준비) |
+| MySQL 8 | **로컬에 설치된 MySQL** 로컬 MySQL이 없으면 Docker로 대신 띄울 수 있습니다 → [MySQL 준비](#2-mysql-준비) |
 | IDE | IntelliJ, VS Code 등 아무거나 |
 | DB 클라이언트 | MySQL Workbench, DBeaver 등. 이력 테이블과 테이블 구조를 확인할 때 씁니다 |
 
@@ -42,16 +40,7 @@ src/main/
     └── db/migration/          ← 마이그레이션 파일 위치 (Spring Boot 기본 경로)
 ```
 
-DB 접속 정보 (`application.yml`)
-
-| 항목 | 값 |
-|------|----|
-| Host / Port | `localhost` / `3306` |
-| Database | `mydb` (없으면 앱이 실행될 때 자동으로 만듭니다) |
-| User / Password | `root` / `ssafy` |
-
 > JDBC URL에 `createDatabaseIfNotExist=true`를 붙여 두어서, `mydb`를 직접 만들지 않아도 됩니다.
-> 로컬 MySQL 계정·비밀번호가 다르면 `application.yml`의 `username` / `password`만 바꿔주세요.
 
 ---
 
@@ -71,7 +60,7 @@ cd ssafy-coach-session-flyway
 
 **로컬 MySQL이 있다면 (기본)** — MySQL이 실행 중인지만 확인하면 됩니다. `mydb`는 앱이 알아서 만듭니다.
 
-> 이미 `mydb`가 있고 안에 테이블이 있다면, 깨끗한 상태에서 시작하도록 [DB 초기화](#db-초기화-처음부터-다시)를 먼저 하세요.
+> 이미 `mydb`가 있고 안에 테이블이 있다면, 깨끗한 상태에서 시작하도록 `DROP DATABASE IF EXISTS mydb;`로 먼저 초기화하세요.
 
 **로컬 MySQL이 없다면 (선택)** — Docker로 띄웁니다. 레포의 `docker-compose.yml`이 같은 접속 정보(`root` / `ssafy`, 3306)로 MySQL 8을 띄워줍니다.
 
@@ -109,25 +98,25 @@ git switch step2
 
 > **⚠️ 꼭 지켜주세요**
 > - **step1 → step6 (→ step9)은 순서대로** 진행하세요. 같은 DB에 이력이 쌓이면서 진행되는 구조입니다.
-> - 이전 단계로 돌아가거나 처음부터 다시 하고 싶으면 [DB 초기화](#db-초기화-처음부터-다시)를 하세요.
+> - 이전 단계로 돌아가거나 처음부터 다시 하고 싶으면 DB 클라이언트에서 `DROP DATABASE IF EXISTS mydb;`로 DB를 초기화하세요. 다음 실행 때 빈 `mydb`가 자동으로 다시 만들어집니다.
 > - `step0` 브랜치는 Flyway가 없는 **"도입 전" 상태**로, step7 Baseline 실습용입니다. **실습은 step1부터** 시작하세요. step1 전에 step0을 실행하면 `ddl-auto: update`가 테이블을 만들어버려서 step1이 실패합니다. (이 상황은 step7에서 일부러 재현합니다. [step0은 왜 있나요?](#step0--flyway-도입-전))
 
 ---
 
 ## 브랜치 한눈에 보기
 
-| 브랜치 | 대본 | 내용 | 실행 결과 |
-|--------|------|------|-----------|
-| `step0` | 2-1 ②, 4-2 | Flyway 도입 전. `ddl-auto: update` (step7 준비용, 실습은 step1부터) | ✅ (JPA가 테이블 생성) |
-| `step1` | 4-1, 5-1, 5-2 | Flyway 설정 + `V1__init.sql` | ✅ V1 적용 → 재실행 시 "up to date" |
-| `step2` | 5-3 | `V2__add_user_nickname.sql` | ✅ V2만 적용 |
-| `step3` | 5-4 | 이미 적용된 V1을 수정 | ❌ **체크섬 오류** |
-| `step4` | 5-4 | V1 원복 + `V3__add_user_phone.sql` | ✅ V3만 적용 |
-| `step5` | 6-1 | 두 사람이 각자 V4를 만들어 머지 | ❌ **버전 중복 오류** |
-| `step6` | 6-1 | 나중에 머지된 쪽을 V5로 변경 | ✅ V4, V5 적용 |
-| `step7` | 4-2 | 이미 테이블이 있는 DB에 Flyway만 붙임 | ❌ **non-empty schema 오류** |
-| `step8` | 4-2 | `V1__baseline.sql` + `baseline-on-migrate` | ✅ V1은 기록만, V2부터 실행 |
-| `step9` | 부록 D | (step6 다음) `dev` 프로필에서만 테스트 데이터 INSERT | ✅ 기본 실행엔 없음, dev 실행 시에만 데이터 들어감 |
+| 브랜치 | 내용 | 실행 결과 |
+|--------|------|-----------|
+| `step0` | Flyway 도입 전. `ddl-auto: update` (step7 준비용, 실습은 step1부터) | ✅ (JPA가 테이블 생성) |
+| `step1` | Flyway 설정 + `V1__init.sql` | ✅ V1 적용 → 재실행 시 "up to date" |
+| `step2` | `V2__add_user_nickname.sql` | ✅ V2만 적용 |
+| `step3` | 이미 적용된 V1을 수정 | ❌ **체크섬 오류** |
+| `step4` | V1 원복 + `V3__add_user_phone.sql` | ✅ V3만 적용 |
+| `step5` | 두 사람이 각자 V4를 만들어 머지 | ❌ **버전 중복 오류** |
+| `step6` | 나중에 머지된 쪽을 V5로 변경 | ✅ V4, V5 적용 |
+| `step7` | 이미 테이블이 있는 DB에 Flyway만 붙임 | ❌ **non-empty schema 오류** |
+| `step8` | `V1__baseline.sql` + `baseline-on-migrate` | ✅ V1은 기록만, V2부터 실행 |
+| `step9` | (step6 다음) `dev` 프로필에서만 테스트 데이터 INSERT | ✅ 기본 실행엔 없음, dev 실행 시에만 데이터 들어감 |
 
 step1→step6은 step0 위에, step7→step8은 따로 step0 위에 커밋을 하나씩 쌓은 구조라서, 단계별 변경 내용은 이렇게 볼 수 있습니다.
 
@@ -159,7 +148,7 @@ git diff step1 step2
 
 ---
 
-### step1 — Flyway 붙이고 V1 적용하기 (대본 4-1, 5-1, 5-2)
+### step1 — Flyway 붙이고 V1 적용하기
 
 **바뀐 것**
 
@@ -217,7 +206,7 @@ CREATE TABLE users (
 
 ---
 
-### step2 — V2로 컬럼 추가하기 (대본 5-3)
+### step2 — V2로 컬럼 추가하기
 
 **바뀐 것**
 
@@ -254,7 +243,7 @@ Schema-validation: missing column [address] in table [users]
 
 ---
 
-### step3 — 일부러 깨뜨리기: 체크섬 오류 (대본 5-4)
+### step3 — 일부러 깨뜨리기: 체크섬 오류
 
 > ❌ 이 브랜치는 **실행하면 실패하는 게 정상**입니다.
 
@@ -297,7 +286,7 @@ Either revert the changes to the migration, or run repair to update the schema h
 
 ---
 
-### step4 — 올바르게 복구하기 (대본 5-4)
+### step4 — 올바르게 복구하기
 
 **바뀐 것**
 
@@ -322,7 +311,7 @@ Successfully applied 1 migration to schema `mydb`, now at version v3
 
 ---
 
-### step5 — 팀에서 깨뜨리기: 같은 버전 번호 충돌 (대본 6-1)
+### step5 — 팀에서 깨뜨리기: 같은 버전 번호 충돌
 
 > ❌ 이 브랜치는 **실행하면 실패하는 게 정상**입니다.
 
@@ -350,7 +339,7 @@ Flyway 입장에서는 **V4가 두 개**라서 어느 것도 실행하지 않고
 
 ---
 
-### step6 — 버전 충돌 해결하기 (대본 6-1)
+### step6 — 버전 충돌 해결하기
 
 **바뀐 것**
 
@@ -395,14 +384,14 @@ V20260914_1042__add_phone.sql
 
 ---
 
-### step7 — 이미 테이블이 있는 DB에 붙이기: 실패 (대본 4-2)
+### step7 — 이미 테이블이 있는 DB에 붙이기: 실패
 
 > ❌ 이 브랜치는 **실행하면 실패하는 게 정상**입니다.
 > step7, step8은 `step0`에서 갈라져 나온 **별도 시나리오**입니다. step6까지 쓰던 DB는 초기화하고 시작하세요.
 
 **상황 만들기** — "`ddl-auto: update`로 개발하던 프로젝트"를 재현합니다.
 
-먼저 [DB 초기화](#db-초기화-처음부터-다시)로 `mydb`를 지웁니다.
+먼저 `mydb`를 지웁니다.
 
 ```sql
 DROP DATABASE IF EXISTS mydb;
@@ -437,7 +426,7 @@ Flyway가 "테이블은 있는데 이력 테이블이 없네? 어디까지 적�
 
 ---
 
-### step8 — Baseline으로 해결하기 (대본 4-2)
+### step8 — Baseline으로 해결하기
 
 **Baseline이란?** "이 DB는 이미 V1까지 적용된 상태로 치자"고 기준점을 잡는 것입니다.
 
@@ -492,10 +481,10 @@ spring:
 
 ---
 
-### step9 — 개발 환경에서만 테스트 데이터 넣기 (대본 부록 D)
+### step9 — 개발 환경에서만 테스트 데이터 넣기
 
 > step9는 **step6 다음 단계**입니다. step6까지 진행한 DB에서 그대로 이어가도 되고, 빈 DB에서 바로 시작해도 됩니다.
-> step7·step8을 실행한 DB라면 [초기화](#db-초기화-처음부터-다시)하고 시작하세요.
+> step7·step8을 실행한 DB라면 `DROP DATABASE IF EXISTS mydb;`로 초기화하고 시작하세요.
 
 **상황**
 
@@ -587,86 +576,6 @@ ON DUPLICATE KEY UPDATE
 > **다른 방법도 있습니다**
 > - `spring.flyway.placeholders`로 SQL 안에서 환경별 값을 바꾸거나, `afterMigrate.sql` 콜백으로 매 실행마다 데이터를 넣는 방법도 있습니다.
 > - 마이그레이션이 아니라 Spring의 `data.sql` + 프로필로 넣는 팀도 있습니다. 어느 쪽이든 **"운영에 들어가면 안 되는 SQL은 운영 설정에서 아예 안 읽히게"** 하는 게 핵심입니다.
-
----
-
-## 자주 쓰는 명령어
-
-아래 SQL은 Workbench, DBeaver 같은 DB 클라이언트에서 실행합니다.
-
-> Docker로 띄웠다면 터미널에서 `docker exec flyway-demo mysql -uroot -pssafy mydb -e "<SQL>"` 형태로 실행할 수 있습니다.
-
-### 이력 테이블 확인
-
-```sql
-SELECT installed_rank, version, description, checksum, success FROM mydb.flyway_schema_history;
-```
-
-### 테이블 구조 확인
-
-```sql
-DESC mydb.users;
-```
-
-### DB 초기화 (처음부터 다시)
-
-`mydb`를 통째로 지웁니다. 다음에 앱을 실행하면 빈 `mydb`가 자동으로 다시 만들어집니다.
-
-```sql
-DROP DATABASE IF EXISTS mydb;
-```
-
-> ⚠️ 로컬 MySQL의 `mydb`에 다른 데이터가 있다면 같이 지워집니다. 필요하면 `application.yml`의 DB 이름을 `flyway_demo` 등으로 바꿔서 쓰세요.
-
-Docker로 띄웠다면 컨테이너째 지우고 새로 띄워도 됩니다.
-
-```bash
-docker compose down -v
-```
-
-```bash
-docker compose up -d
-```
-
-> 컨테이너 MySQL이 완전히 뜨기까지 10초 정도 걸립니다. 바로 실행해서 `Communications link failure`가 나면 잠시 후 다시 실행하세요.
-
----
-
-## 트러블슈팅
-
-### `Unknown database 'mydb'` 오류가 나요
-
-JDBC URL에서 `?createDatabaseIfNotExist=true`가 빠진 상태입니다. `application.yml`의 URL을 확인하거나, DB 클라이언트에서 직접 만드세요.
-
-```sql
-CREATE DATABASE mydb;
-```
-
-### `Access denied for user 'root'@'localhost'` 오류가 나요
-
-로컬 MySQL 비밀번호가 `ssafy`가 아닌 경우입니다. `application.yml`의 `password`를 내 MySQL 비밀번호로 바꿔주세요.
-
-### `docker compose up`을 했더니 3306 포트가 이미 사용 중이래요
-
-로컬 MySQL이 이미 3306을 쓰고 있습니다. **로컬 MySQL을 그대로 쓰면 되니 Docker는 필요 없습니다.** 꼭 Docker를 쓰고 싶다면 `docker-compose.yml`의 포트를 `"3307:3306"`으로 바꾸고 `application.yml`의 URL도 `localhost:3307`로 바꿔주세요.
-
-### step1인데 `Found non-empty schema(s)` 오류가 나요
-
-step1 전에 `step0`을 실행해서 JPA가 테이블을 미리 만든 상태입니다. [DB 초기화](#db-초기화-처음부터-다시) 후 다시 실행하세요.
-
-### 이전 단계로 돌아갔더니 `Detected applied migration not resolved locally` 오류가 나요
-
-DB에는 V3까지 적용됐는데 브랜치에는 V2까지만 있는 상태입니다. Flyway는 DB 이력과 파일이 맞지 않으면 멈춥니다. [DB 초기화](#db-초기화-처음부터-다시) 후 다시 진행하세요.
-
-### step9에서 기본 프로필로 실행했더니 `Detected applied migration not resolved locally: insert test users` 오류가 나요
-
-dev 프로필로 테스트 데이터(R)를 넣은 DB를 운영 설정으로 실행한 상태입니다. 운영 설정에는 `db/seed` 폴더가 없어서 이력과 파일이 맞지 않습니다. 실제로는 개발 DB와 운영 DB가 다르니 생기지 않는 상황입니다. [DB 초기화](#db-초기화-처음부터-다시) 후 기본 프로필 → dev 프로필 순서로 실행하세요.
-
-### 마이그레이션 파일을 넣었는데 인식이 안 돼요
-
-- 밑줄이 **두 개**(`__`)인지 확인하세요. `V2_add.sql`은 무시됩니다.
-- 경로가 `src/main/resources/db/migration/`인지 확인하세요.
-- Spring Boot 4.x라면 `spring-boot-starter-flyway`를 넣었는지 확인하세요.
 
 ---
 
