@@ -96,6 +96,18 @@ git switch step2
 
 브랜치를 바꾸고 → 실행하고 → 로그와 DB를 확인하는 것을 반복합니다.
 
+> **⚠️ IntelliJ로 실행한다면 — 브랜치를 바꿀 때마다 Gradle을 다시 로드하세요**
+>
+> 이 레포는 브랜치마다 `build.gradle`이 다릅니다. (step0만 Flyway 의존성이 없음)
+> IntelliJ는 **마지막으로 Gradle을 로드했을 때의 의존성**으로 실행하기 때문에, `git switch` 후 다시 로드하지 않으면 이전 브랜치의 의존성으로 실행됩니다.
+>
+> - `git switch` 후 오른쪽 위에 뜨는 **코끼리 아이콘(Load Gradle Changes)** 을 누르거나 `Ctrl + Shift + O`
+> - 다시 로드하지 않으면 생기는 일
+>   - **step0인데 Flyway가 실행됨** → 빈 `flyway_schema_history`가 생겨서 step7에서 오류가 안 나고 V2가 그냥 적용됨
+>   - **step1~9인데 Flyway가 실행 안 됨** → 로그에 Flyway 관련 줄이 하나도 없고 `Schema-validation: missing column [...]` (JPA validate 오류)로 실패
+>
+> 터미널에서 `./gradlew bootRun`으로 실행하면 매번 현재 `build.gradle`을 읽으므로 이 문제가 없습니다.
+
 > **⚠️ 꼭 지켜주세요**
 > - **step1 → step6 (→ step9)은 순서대로** 진행하세요. 같은 DB에 이력이 쌓이면서 진행되는 구조입니다.
 > - 이전 단계로 돌아가거나 처음부터 다시 하고 싶으면 DB 클라이언트에서 `DROP DATABASE IF EXISTS mydb;`로 DB를 초기화하세요. 다음 실행 때 빈 `mydb`가 자동으로 다시 만들어집니다.
@@ -405,7 +417,15 @@ git switch step0
 ./gradlew bootRun
 ```
 
-`step0`에서 실행하면 `mydb`가 새로 만들어지고 JPA가 `users` 테이블을 만듭니다. 확인했으면 종료하고 step7로 이동합니다.
+`step0`에서 실행하면 `mydb`가 새로 만들어지고 JPA가 `users` 테이블을 만듭니다. 테이블 목록을 확인합니다.
+
+```sql
+SHOW TABLES FROM mydb;
+```
+
+**`users` 하나만** 있어야 합니다. `flyway_schema_history`도 보인다면 IntelliJ가 이전 브랜치의 Flyway 의존성으로 실행한 것입니다. [Gradle을 다시 로드](#5-다음-단계로)하고 DB 초기화부터 다시 하세요. (이력 테이블이 이미 있으면 step7에서 오류가 나지 않습니다.)
+
+확인했으면 step7로 이동합니다. IntelliJ라면 **Gradle 다시 로드**도 잊지 마세요.
 
 ```bash
 git switch step7
